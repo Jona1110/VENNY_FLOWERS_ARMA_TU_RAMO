@@ -1,9 +1,9 @@
 /* ==========================================================================
-   Lógica del Menú Interactivo - Conectado a Google Sheets
+   Lógica del Menú Interactivo - Optimizado con Caché Local (Velocidad Inmediata)
    ========================================================================== */
 
-// 🔴 IMPORTANTE: Pega aquí la URL de tu implementación de Apps Script
 const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbwy7qdPM56p_NT0VRM-f9QMGFD_9jxgCzOIzYcUKrFsOdDOd-ABwEGUjFvjpTRDHgCfSQ/exec";
+const CACHE_KEY = "venny_flowers_catalogo_cache";
 
 document.addEventListener('DOMContentLoaded', () => {
     let currentStep = 1;
@@ -27,28 +27,54 @@ document.addEventListener('DOMContentLoaded', () => {
         baseNombre: "", basePrecio: 0, flores: {}, papelNombre: "", extras: {}, total: 0
     };
 
-    // 1. INICIALIZAR Y TRAER DATOS
-    async function inicializarSistema() {
+    // 1. CARGA INICIAL CON CACHÉ LOCAL (Cero demoras)
+    function inicializarSistema() {
+        const datosGuardados = localStorage.getItem(CACHE_KEY);
+        if (datosGuardados) {
+            try {
+                const jsonDatos = JSON.parse(datosGuardados);
+                procesarCatalogo(jsonDatos);
+                elements.pantallaCarga.classList.add('hidden');
+                updateWizard();
+            } catch (e) {
+                console.error("Error leyendo caché local:", e);
+            }
+        }
+
+        // Sincronización silenciosa en segundo plano
+        sincronizarConServidor();
+    }
+
+    async function sincronizarConServidor() {
         try {
             const response = await fetch(`${URL_GOOGLE_SCRIPT}?accion=obtener_catalogo`);
             const json = await response.json();
             
             if(json.exito) {
-                renderizarBases(json.datos.bases);
-                renderizarFlores(json.datos.flores);
-                renderizarPapeles(json.datos.papeles);
-                renderizarExtras(json.datos.extras);
-                
-                elements.pantallaCarga.classList.add('hidden');
-                updateWizard();
+                localStorage.setItem(CACHE_KEY, JSON.stringify(json.datos));
+                // Solo renderiza si no había caché previa para evitar parpadeos
+                if (elements.pantallaCarga.classList.contains('hidden') === false) {
+                    procesarCatalogo(json.datos);
+                    elements.pantallaCarga.classList.add('hidden');
+                    updateWizard();
+                }
             }
         } catch (error) {
-            console.error("Error: ", error);
-            alert("No se pudo cargar el catálogo.");
+            console.error("Modo offline o error de red:", error);
+            if (!localStorage.getItem(CACHE_KEY)) {
+                alert("No se pudo cargar el catálogo. Verifica tu conexión a internet.");
+            }
         }
     }
 
-    // 2. RENDERIZAR BASES (Con insignia visual de selección)
+    function procesarCatalogo(datos) {
+        renderizarBases(datos.bases);
+        renderizarFlores(datos.flores);
+        renderizarPapeles(datos.papeles);
+        renderizarExtras(datos.extras);
+    }
+
+    // 2. RENDERIZAR BASES (Con insignia visual clara de selección)
     function renderizarBases(bases) {
         elements.basesContainer.innerHTML = '';
         bases.forEach((base, index) => {
@@ -59,7 +85,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 <label class="cursor-pointer border-2 border-[#E8DCC4] rounded-xl p-3 flex flex-col items-center text-center transition bg-white shadow-sm peer-checked:border-oro peer-checked:bg-rosa-suave relative overflow-hidden group">
                     <input type="radio" name="base_ramo" value="${base.Nombre}" data-precio="${precioNum}" class="peer sr-only" ${index === 0 ? 'checked' : ''}>
                     
-                    <!-- NUEVO: Etiqueta de Elegido -->
                     <div class="absolute top-2 right-2 bg-oro text-white text-[10px] font-bold px-2 py-0.5 rounded-full opacity-0 peer-checked:opacity-100 transition-all shadow-sm z-10 flex items-center space-x-1 transform peer-checked:scale-100 scale-75">
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
                         <span>Elegido</span>
@@ -93,10 +118,17 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderizarFlores(flores) {
         elements.floresContainer.innerHTML = '';
         flores.forEach(flor => {
-            estadoPedido.flores[flor.ID] = { nombre: flor.Nombre, precio: parseFloat(flor.Precio_Unitario), cantidad: 0 };
+            if(!estadoPedido.flores[flor.ID]) {
+                estadoPedido.flores[flor.ID] = { nombre: flor.Nombre, precio: parseFloat(flor.Precio_Unitario), cantidad: 0 };
+            } else {
+                estadoPedido.flores[flor.ID].precio = parseFloat(flor.Precio_Unitario);
+                estadoPedido.flores[flor.ID].nombre = flor.Nombre;
+            }
+            const cantidadActual = estadoPedido.flores[flor.ID].cantidad;
+            const tieneCantidad = cantidadActual > 0;
             
             const html = `
-                <div id="flor-card-${flor.ID}" class="flor-card bg-white p-3 rounded-xl border-2 border-[#E8DCC4] flex items-center justify-between shadow-sm transition duration-300">
+                <div id="flor-card-${flor.ID}" class="flor-card bg-white p-3 rounded-xl border-2 ${tieneCantidad ? 'border-oro bg-rosa-suave' : 'border-[#E8DCC4]'} flex items-center justify-between shadow-sm transition duration-300">
                     <div class="flex items-center space-x-3">
                         <div class="w-12 h-12 bg-stone-100 rounded-lg bg-cover bg-center border border-stone-200" style="background-image: url('${flor.Imagen_URL || ''}')"></div>
                         <div>
@@ -106,7 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="flex items-center space-x-2">
                         <button type="button" onclick="modificarCantidadFlor('${flor.ID}', -1)" class="w-8 h-8 rounded-lg bg-[#FAF6F0] text-cafe font-bold flex items-center justify-center border border-[#E8DCC4] hover:bg-stone-200 transition">-</button>
-                        <span id="qty-${flor.ID}" class="text-sm font-semibold w-6 text-center text-cafe">0</span>
+                        <span id="qty-${flor.ID}" class="text-sm font-semibold w-6 text-center text-cafe">${cantidadActual}</span>
                         <button type="button" onclick="modificarCantidadFlor('${flor.ID}', 1)" class="w-8 h-8 rounded-lg bg-oro text-white font-bold flex items-center justify-center shadow-sm hover:bg-[#b58f4a] transition">+</button>
                     </div>
                 </div>
@@ -133,7 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 4. RENDERIZAR PAPELES (Con checkmark de selección)
+    // 4. RENDERIZAR PAPELES (Con checkmark de selección muy visible)
     function renderizarPapeles(papeles) {
         elements.papelesContainer.innerHTML = '';
         papeles.forEach((papel, index) => {
@@ -145,7 +177,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 <label class="cursor-pointer border-2 border-[#E8DCC4] rounded-xl p-2.5 flex flex-col items-center bg-white transition relative group hover:border-oro">
                     <input type="radio" name="papel" value="${papel.Nombre}" class="peer sr-only" ${index === 0 ? 'checked' : ''}>
                     
-                    <!-- NUEVO: Checkmark de Selección -->
                     <div class="absolute -top-2 -right-2 bg-oro text-white p-1 rounded-full opacity-0 peer-checked:opacity-100 transition shadow-md z-10 transform peer-checked:scale-100 scale-75">
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
                     </div>
@@ -159,31 +190,36 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 5. RENDERIZAR EXTRAS (Detecta Tarjetas automáticamente)
+    // 5. RENDERIZAR EXTRAS (Con apartado automático de Dedicatoria si incluye tarjeta)
     function renderizarExtras(extras) {
         elements.extrasContainer.innerHTML = '';
         extras.forEach(extra => {
-            estadoPedido.extras[extra.ID] = { nombre: extra.Nombre, precio: parseFloat(extra.Precio), seleccionado: false };
+            if(!estadoPedido.extras[extra.ID]) {
+                estadoPedido.extras[extra.ID] = { nombre: extra.Nombre, precio: parseFloat(extra.Precio), seleccionado: false };
+            } else {
+                estadoPedido.extras[extra.ID].precio = parseFloat(extra.Precio);
+                estadoPedido.extras[extra.ID].nombre = extra.Nombre;
+            }
+            const estaSeleccionado = estadoPedido.extras[extra.ID].seleccionado;
             
             const imgHtml = extra.Imagen_URL && extra.Imagen_URL.length > 50 
                 ? `<div class="w-10 h-10 bg-stone-100 rounded-lg bg-cover bg-center border border-[#E8DCC4] flex-shrink-0" style="background-image: url('${extra.Imagen_URL}')"></div>` 
                 : '';
 
-            // NUEVO: Detectar si el extra es una tarjeta para desplegar textarea
             const esTarjeta = extra.Nombre.toLowerCase().includes('tarjeta');
             const textareaHtml = esTarjeta ? `
-                <div id="caja-mensaje-${extra.ID}" class="hidden w-full pl-10 pr-3 pb-3 mt-1">
+                <div id="caja-mensaje-${extra.ID}" class="${estaSeleccionado ? '' : 'hidden'} w-full pl-10 pr-3 pb-3 mt-1">
                     <textarea id="mensaje-${extra.ID}" rows="2" placeholder="Escribe aquí la dedicatoria para tu tarjeta..." class="w-full bg-stone-50 border border-[#E8DCC4] rounded-lg p-2 text-xs text-cafe focus:outline-none focus:border-oro transition placeholder-stone-400"></textarea>
                 </div>
             ` : '';
 
             const html = `
-                <div class="flex flex-col bg-white rounded-xl border-2 border-[#E8DCC4] transition-all duration-300" id="contenedor-extra-${extra.ID}">
+                <div class="flex flex-col bg-white rounded-xl border-2 ${estaSeleccionado ? 'border-oro bg-rosa-suave' : 'border-[#E8DCC4]'} transition-all duration-300" id="contenedor-extra-${extra.ID}">
                     <label id="label-extra-${extra.ID}" class="flex items-center space-x-3 p-3 cursor-pointer">
-                        <input type="checkbox" id="chk-${extra.ID}" data-id="${extra.ID}" data-estarjeta="${esTarjeta}" class="extra-checkbox sr-only">
+                        <input type="checkbox" id="chk-${extra.ID}" data-id="${extra.ID}" data-estarjeta="${esTarjeta}" ${estaSeleccionado ? 'checked' : ''} class="extra-checkbox sr-only">
                         
-                        <div id="box-${extra.ID}" class="w-5 h-5 flex-shrink-0 border-2 border-[#E8DCC4] rounded flex items-center justify-center transition-colors duration-300">
-                            <svg id="svg-${extra.ID}" class="w-3 h-3 text-white hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        <div id="box-${extra.ID}" class="w-5 h-5 flex-shrink-0 border-2 ${estaSeleccionado ? 'border-oro bg-oro' : 'border-[#E8DCC4]'} rounded flex items-center justify-center transition-colors duration-300">
+                            <svg id="svg-${extra.ID}" class="w-3 h-3 text-white ${estaSeleccionado ? '' : 'hidden'}" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
                                 <polyline points="20 6 9 17 4 12"></polyline>
                             </svg>
                         </div>
@@ -290,7 +326,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const fEntrega = document.getElementById('fecha-entrega').value || "Lo antes posible";
         const tEntrega = document.getElementById('tipo-entrega').value;
 
-        // NUEVO: Recopilar textos de extras y dedicatorias
         let extrasListParaSheets = [];
         let extrasTxtParaWhatsApp = "";
         
@@ -309,7 +344,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Inyectamos los extras y dedicatorias en el string de "Listón" para que Google Sheets lo guarde sin modificar el backend
         let listonYExtrasStr = listonNombre;
         if(extrasListParaSheets.length > 0) {
             listonYExtrasStr += ` | Extras: ${extrasListParaSheets.join(', ')}`;
@@ -319,7 +353,7 @@ document.addEventListener('DOMContentLoaded', () => {
             baseNombre: estadoPedido.baseNombre,
             flores: Object.values(estadoPedido.flores).filter(f => f.cantidad > 0),
             papelNombre: estadoPedido.papelNombre,
-            listonNombre: listonYExtrasStr, // Se guardará en la columna "Detalles_Ramo"
+            listonNombre: listonYExtrasStr,
             clienteNombre: cNombre,
             clienteTelefono: cTel,
             fechaEntrega: fEntrega,
