@@ -1,0 +1,47 @@
+/* ==========================================================================
+   Estilos Complementarios - Arma tu Ramo (Venny Flowers)
+   ========================================================================== */
+
+/* Ocultar la barra de desplazamiento en los pasos para un look más limpio de app nativa */
+::-webkit-scrollbar {
+    width: 0px;
+    background: transparent; 
+}
+
+/* Animación de entrada suave para cada paso del Wizard */
+.wizard-step {
+    animation: fadeIn 0.4s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Transición suave para el color del texto en el indicador de pasos */
+.step-indicator {
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    margin-right: 1.5rem;
+}
+
+.step-indicator:last-child {
+    margin-right: 0;
+}
+
+/* Estado inactivo de los pasos (gris) */
+.step-indicator.inactive {
+    color: #a8a29e; /* text-stone-400 */
+    border-bottom: 2px solid transparent;
+}
+
+/* Ocultar input radio original pero mantener funcionalidad */
+input[type="radio"]:checked + div {
+    border-color: #e11d48; /* rose-600 */
+}
