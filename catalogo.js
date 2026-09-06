@@ -384,7 +384,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         mensaje += `\n💳 *DATOS PARA PAGO / ANTICIPO:*\nBanco: [AQUÍ TU BANCO]\nCuenta: [0000000000]\nCLABE: [000000000000000000]\nTitular: Venny Flowers\n\n_Hola, acabo de armar mi ramo desde su app, quiero confirmar mi pedido._`;
 
-        window.open(`https://wa.me/523322961969?text=${encodeURIComponent(mensaje)}`, '_blank');
+        window.open(`https://wa.me/523327593202?text=${encodeURIComponent(mensaje)}`, '_blank');
     });
 
     inicializarSistema();
