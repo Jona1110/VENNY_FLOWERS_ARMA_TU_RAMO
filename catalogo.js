@@ -398,7 +398,7 @@ document.addEventListener('DOMContentLoaded', () => {
         mensaje += `\n💰 *Total Estimado:* $${estadoPedido.total.toFixed(2)} MXN\n\n`;
         mensaje += `_Hola, acabo de armar mi ramo desde su app, quiero confirmar mi pedido._`;
 
-        const urlWhatsApp = `https://wa.me/523322961969?text=${encodeURIComponent(mensaje)}`;
+        const urlWhatsApp = `https://wa.me/523327593202?text=${encodeURIComponent(mensaje)}`;
         window.open(urlWhatsApp, '_blank');
     });
 
